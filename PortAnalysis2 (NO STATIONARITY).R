@@ -29,13 +29,19 @@ library("aTSA")
 #For example, instead of setwd("\Users\kenfung\Desktop\FreshFinance"), 
 #do setwd("/Users/kenfung/Desktop/FreshFinance") instead
 #This is the same for Windows users!
+
 setwd("/Users/kenfung/Desktop/FreshFinance")
+
 #CHANGE the file name to the index csv file (the file with all the tickers)
 #MAKE SURE that the column name of that csv file is Symbol
+
 index = read.csv(file="LQ45.csv", header=TRUE, stringsAsFactors=FALSE)
+
 #CHANGE: Copy the filepath above below, and add the portfolio_noshorts.r at the end. Use my
 #path as an example. Windows is the same.
+
 source(file="/Users/kenfung/Desktop/FreshFinance/portfolio_noshorts.r")
+
 #Just in case something goes wrong, don't worry about it
 colnames(index) = c("Symbol")
 
@@ -126,6 +132,23 @@ for(asset in index.names){
   #Next, check if there are NAs in the data. If yes, kick it out and move on to next asset.
   sumNA = sum(is.na(projectPrices.z))
   if(sumNA > 0){
+    projectPrices.z = projectPrices.z[, colnames(projectPrices.z) != "Adjusted"]
+    next
+  }
+  
+  #Next, check for liquidity. If the overall trading liquidity is less than 1B rupiah, drop the asset.
+  #CHANGE the start and end dates to fit your specs.
+  volume = get.hist.quote(instrument=asset.name, start="2020-01-01",
+                          end="2020-01-02", quote="Volume",
+                          provider="yahoo", origin="1970-01-01",
+                          compression="m", retclass="zoo")
+  adjclose = get.hist.quote(instrument=asset.name, start="2020-01-01",
+                                     end="2020-01-02", quote="AdjClose",
+                                     provider="yahoo", origin="1970-01-01",
+                                     compression="m", retclass="zoo")
+  #Better to go higher than lower. Assume 21 trading days in a month (instead of 20)
+  liquidity = (volume * adjclose)/21
+  if(liquidity < 1000000000){
     projectPrices.z = projectPrices.z[, colnames(projectPrices.z) != "Adjusted"]
     next
   }
@@ -248,16 +271,19 @@ skew.vals.topzoo = skewness(top_zoo_df)
 kurt.vals.topzoo = kurtosis(top_zoo_df)
 UniDesStat.df.topzoo = summary(top_zoo_df)
 
+
+#-----------------------------------------------------------------
+
 ## Compute tangency portfolio with no short sales
 tan.port.ns <- tangency.portfolio(muhat.vals.topzoo, cov.mat.topzoo, rf, shorts=FALSE)
-tan.port.ns
-summary(tan.port.ns, risk.free=rf)
+#tan.port.ns
+#summary(tan.port.ns, risk.free=rf)
 plot(tan.port.ns)
 
 ## compute tangency portfolio with no short sales (Annualized)
 tan.port.ns.annual <- tangency.portfolio(muhat.vals.topzoo*12, cov.mat.topzoo, rf*12, shorts=FALSE)
-tan.port.ns.annual
-summary(tan.port.ns.annual, risk.free=rf*12)
+# tan.port.ns.annual
+# summary(tan.port.ns.annual, risk.free=rf*12)
 plot(tan.port.ns.annual)
 
 annual_weights_df = as.data.frame(tan.port.ns.annual$weights)
@@ -308,6 +334,7 @@ for(ticker in ticker_names){
 #Calculate the overall portfolio % change for the whole period.
 #This is assuming that you bought it on the start date and held it all the way
 #till the end date.
+#This is simple returns, so no need for conversion at the end.
 start_data = as.data.frame(start_data)
 end_data = as.data.frame(end_data)
 
@@ -322,12 +349,108 @@ port_change
 port_change_figure = paste((sum(port_change$overall_change) * 100), "%", sep = "")
 port_change_figure
 
+#--------------------------------------------------------------------
+##CHANGE: if you want to manually input the portfolio weights
+#First observe the order of stocks
+colnames(top_zoo_df)
+manual_stocknames = as.matrix(colnames(top_zoo_df))
+#Then, manually input the weights. The total weights can be less than 1, but cannot be more than 1.
+#If it's more than 1, there will be an error at the bottom, and you will have to modify the weights
+#and run this program again.
+#Put the weights in the c() below, for example, c(0.2,0.2,0.2,0.2,0.2)
+#manual_weights = c()
+#manual_weights = as.matrix(manual_weights)
+manual_weights = matrix(rep(1/21), nrow = ncol(top_zoo_df))
+rownames(manual_weights) = manual_stocknames
+colnames(manual_weights) = c("Weights")
+muhat.vals.topzoo.df = as.matrix(muhat.vals.topzoo)
+
+#Monthly ER, SD and Sharpe
+manual_ER_month = t(manual_weights) %*% muhat.vals.topzoo.df
+manual_ER_month_simple = exp(manual_ER_month) - 1
+manual_SD_month = (t(manual_weights) %*% cov.mat.topzoo) %*% manual_weights
+manual_sharpe_month = (manual_ER_month - rf)/manual_SD_month
+
+#Annual ER, SD and Sharpe
+manual_ER_annual = manual_ER_month * 12
+manual_ER_annual_simple = exp(manual_ER_month * 12) - 1
+manual_SD_annual = manual_SD_month * sqrt(12)
+manual_sharpe_annual = (manual_ER_annual - (rf*12))/manual_SD_annual
+
+# Backtesting the portfolio
+ticker_names = annual_weights_df$Ticker
+start_data = c()
+end_data = c()
+
+#Grab the two data points (start, end) for all the tickers in the portfolio
+#CHANGE: the start and end dates below to reflect the parameters that you desire!
+for(ticker in ticker_names){
+  start_with = get.hist.quote(instrument=ticker, start=start.date,
+                              end="2007-01-02", quote="AdjClose",
+                              provider="yahoo", origin="1970-01-01",
+                              compression="m", retclass="zoo")
+  end_with = get.hist.quote(instrument=ticker, start=end.date,
+                            end="2020-01-02", quote="AdjClose",
+                            provider="yahoo", origin="1970-01-01",
+                            compression="m", retclass="zoo")
+  start_data = c(start_data, as.numeric(start_with$Adjusted))
+  end_data = c(end_data, as.numeric(end_with$Adjusted))
+  
+}
+
+#Calculate the overall portfolio % change for the whole period.
+#This is assuming that you bought it on the start date and held it all the way
+#till the end date.
+#This is simple returns, so no need for conversion at the end.
+start_data = as.data.frame(start_data)
+end_data = as.data.frame(end_data)
+
+manual_percent_change_data = ((end_data - start_data)/start_data)
+colnames(manual_percent_change_data) = c("percent_change")
+rownames(manual_percent_change_data) = ticker_names
+
+manual_port_change = manual_percent_change_data * manual_weights
+colnames(manual_port_change) = c("overall_change")
+manual_port_change
+
+manual_port_change_figure = paste((sum(manual_port_change$overall_change) * 100), "%", sep = "")
+manual_port_change_figure
+
+#Some last minute calculations (adjustment to simple returns from CC returns)
+monthly_er_simple = exp(tan.port.ns$er) - 1
+annual_er_cc = tan.port.ns$er * 12
+annual_er_simple = exp(tan.port.ns$er * 12) - 1
+annual_rf = rf*12
+annual_sd = tan.port.ns$sd * sqrt(12)
 
 #--------------------------------------------------------------------
 #Calling all the important stuff at the end for neatness
+#--------------------------------------------------------------------
+#Monthly Stats
+paste("Monthly Portfolio Expected Returns:", monthly_er_simple*100, "%")
+paste("Monthly Portfolio Standard Deviation:", tan.port.ns$sd * 100, "%")
+paste("Monthly Portfolio Sharpe Ratio:", (tan.port.ns$er - rf)/tan.port.ns$sd)
 
-summary(tan.port.ns, risk.free=rf)
-summary(tan.port.ns.annual, risk.free=rf*12)
+#Annual Stats
+paste("Annual Portfolio Expected Returns:", annual_er_simple*100, "%")
+paste("Annual Portfolio Standard Deviation:", annual_sd*100, "%")
+paste("Annual Portfolio Sharpe Ratio:", (annual_er_cc - annual_rf)/annual_sd)
+
 annual_weights_df
 port_change_figure
+#--------------------------------------------------------------------
+#If you decided to manually input portfolio weights
 
+#Monthly Stats
+paste("Monthly Portfolio Expected Returns:", manual_ER_month_simple*100, "%")
+paste("Monthly Portfolio Standard Deviation:", manual_SD_month*100, "%")
+paste("Monthly Portfolio Sharpe Ratio:", manual_sharpe_month)
+
+#Annual Stats
+paste("Annual Portfolio Expected Returns:", manual_ER_annual_simple*100, "%")
+paste("Annual Portfolio Standard Deviation:", manual_SD_annual*100, "%")
+paste("Annual Portfolio Sharpe Ratio:", manual_sharpe_annual)
+
+manual_weights
+manual_port_change_figure
+#--------------------------------------------------------------------
