@@ -283,3 +283,46 @@ annual_weights_df
 #folder that you specified as your working directory at the beginning
 #Run getwd() to check your working directory
 write.csv(annual_weights_df, file = "TopStocks.csv")
+
+#Backtesting the portfolio
+ticker_names = annual_weights_df$Ticker
+start_data = c()
+end_data = c()
+
+#Grab the two data points (start, end) for all the tickers in the portfolio
+#CHANGE: the start and end dates below to reflect the parameters that you desire!
+for(ticker in ticker_names){
+  start_with = get.hist.quote(instrument=ticker, start=start.date,
+                               end="2007-01-02", quote="AdjClose",
+                               provider="yahoo", origin="1970-01-01",
+                               compression="m", retclass="zoo")
+  end_with = get.hist.quote(instrument=ticker, start=end.date,
+                            end="2020-01-02", quote="AdjClose",
+                            provider="yahoo", origin="1970-01-01",
+                            compression="m", retclass="zoo")
+  start_data = c(start_data, as.numeric(start_with$Adjusted))
+  end_data = c(end_data, as.numeric(end_with$Adjusted))
+  
+}
+
+#Calculate the overall portfolio % change for the whole period.
+#This is assuming that you bought it on the start date and held it all the way
+#till the end date.
+start_data = as.data.frame(start_data)
+end_data = as.data.frame(end_data)
+
+percent_change_data = ((end_data - start_data)/start_data)
+colnames(percent_change_data) = c("percent_change")
+rownames(percent_change_data) = ticker_names
+
+port_change = percent_change_data * annual_weights_df$Weights
+colnames(port_change) = c("overall_change")
+port_change
+
+port_change_figure = paste((sum(port_change$overall_change) * 100), "%", sep = "")
+port_change_figure
+
+
+#--------------------------------------------------------------------
+
+
