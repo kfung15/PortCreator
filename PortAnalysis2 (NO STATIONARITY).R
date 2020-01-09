@@ -324,5 +324,10 @@ port_change_figure
 
 
 #--------------------------------------------------------------------
+#Calling all the important stuff at the end for neatness
 
+summary(tan.port.ns, risk.free=rf)
+summary(tan.port.ns.annual, risk.free=rf*12)
+annual_weights_df
+port_change_figure
 
