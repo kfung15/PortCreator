@@ -358,9 +358,10 @@ manual_stocknames = as.matrix(colnames(top_zoo_df))
 #If it's more than 1, there will be an error at the bottom, and you will have to modify the weights
 #and run this program again.
 #Put the weights in the c() below, for example, c(0.2,0.2,0.2,0.2,0.2)
+#UNCOMMENT lines 362 and 363, comment out line 364 (it's a placeholder)
 #manual_weights = c()
 #manual_weights = as.matrix(manual_weights)
-manual_weights = matrix(rep(1/21), nrow = ncol(top_zoo_df))
+manual_weights = matrix(rep(1/ncol(top_zoo_df)), nrow = ncol(top_zoo_df))
 rownames(manual_weights) = manual_stocknames
 colnames(manual_weights) = c("Weights")
 muhat.vals.topzoo.df = as.matrix(muhat.vals.topzoo)
