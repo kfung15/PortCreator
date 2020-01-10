@@ -212,13 +212,13 @@ projectPrices.new.df = projectPrices.df[c(overall_stocklist_list)]
 
 
 #Don't worry about this
-write.csv(projectPrices.df, file = "ProjectPrices.csv")
-projectPrices.df = read.csv("ProjectPrices.csv")
-projectPrices.df = projectPrices.df[,2:ncol(projectPrices.df)]
+write.csv(projectPrices.new.df, file = "ProjectPrices.csv")
+projectPrices.new.df = read.csv("ProjectPrices.csv")
+projectPrices.new.df = projectPrices.new.df[,2:ncol(projectPrices.df)]
 
 
 #Convert df to zoo and adjust the date index
-Indoprice_trial.z = zoo(projectPrices.df, order.by = index(SMSM.prices))
+Indoprice_trial.z = zoo(projectPrices.new.df, order.by = index(SMSM.prices))
 
 #calculate the cc returns
 projectReturns.z = diff(log(Indoprice_trial.z))
