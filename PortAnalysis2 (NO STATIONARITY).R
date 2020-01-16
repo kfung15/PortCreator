@@ -1,5 +1,5 @@
 #Name: Kennard Fung
-#Project: Tangency Portfolio Maker (Without Stationarity Checker feature)
+#Project: Tangency Portfolio Maker (Machine Generated) (Without Stationarity Checker feature)
 
 #Before running this program:
 #1. Create a new folder in your computer. Note the path of the folder you created.
@@ -148,7 +148,7 @@ for(asset in index.names){
                                      compression="m", retclass="zoo")
   #Better to go higher than lower. Assume 21 trading days in a month (instead of 20)
   liquidity = (volume * adjclose)/21
-  if(liquidity < 1000000000){
+  if(liquidity < 200000000){
     projectPrices.z = projectPrices.z[, colnames(projectPrices.z) != "Adjusted"]
     next
   }
@@ -177,9 +177,7 @@ for(stock in overall_stocklist){
     if((as.numeric(as.character(projectPrices.df[,stock][n]))) < 0){
       problem_stocks = c(problem_stocks,stock)
     }
-    
   }
-  
 }
 
 problem_stocks = as.data.frame(problem_stocks)
@@ -198,7 +196,11 @@ overall_stocklist = overall_stocklist[-c(problem_index)]
 overall_stocklist = as.data.frame(overall_stocklist)
 
 #Refresh the projectPrices.df
-projectPrices.df = projectPrices.df[c(overall_stocklist)]
+overall_stocklist_list = c()
+for(stock in overall_stocklist){
+  overall_stocklist_list = c(overall_stocklist_list,(as.character(stock)))
+}
+projectPrices.new.df = projectPrices.df[c(overall_stocklist_list)]
 
 
 #Don't worry about this
@@ -258,6 +260,12 @@ top_zoo_df = read.csv("TopZoo.csv")
 #Delete the first column coz unnecessary dates
 top_zoo_df = top_zoo_df[,2:ncol(top_zoo_df)]
 
+#Just cleaning up the top_zoo_df column names
+for(n in 1:ncol(top_zoo_df)){
+  if(nchar(colnames(top_zoo_df[n]))>7){
+    colnames(top_zoo_df)[n] = substr(colnames(top_zoo_df)[n],1,7)
+  }
+}
 
 # Compute descriptive statistics
 # There are other stats like skewness and kurtosis if you need them
@@ -310,10 +318,17 @@ annual_weights_df
 #Run getwd() to check your working directory
 write.csv(annual_weights_df, file = "TopStocks.csv")
 
+#----------------------------------------------------------------------
 #Backtesting the portfolio
 ticker_names = annual_weights_df$Ticker
 start_data = c()
 end_data = c()
+
+for(n in 1:length(ticker_names)){
+  if(nchar(annual_weights_df$Ticker[n])>7){
+    annual_weights_df$Ticker[n] = substr(annual_weights_df$Ticker[n],1,7)
+  }
+}
 
 #Grab the two data points (start, end) for all the tickers in the portfolio
 #CHANGE: the start and end dates below to reflect the parameters that you desire!
@@ -347,75 +362,8 @@ colnames(port_change) = c("overall_change")
 port_change
 
 port_change_figure = paste((sum(port_change$overall_change) * 100), "%", sep = "")
-port_change_figure
 
 #--------------------------------------------------------------------
-##CHANGE: if you want to manually input the portfolio weights
-#First observe the order of stocks
-colnames(top_zoo_df)
-manual_stocknames = as.matrix(colnames(top_zoo_df))
-#Then, manually input the weights. The total weights can be less than 1, but cannot be more than 1.
-#If it's more than 1, there will be an error at the bottom, and you will have to modify the weights
-#and run this program again.
-#Put the weights in the c() below, for example, c(0.2,0.2,0.2,0.2,0.2)
-#UNCOMMENT lines 362 and 363, comment out line 364 (it's a placeholder)
-#manual_weights = c()
-#manual_weights = as.matrix(manual_weights)
-manual_weights = matrix(rep(1/ncol(top_zoo_df)), nrow = ncol(top_zoo_df))
-rownames(manual_weights) = manual_stocknames
-colnames(manual_weights) = c("Weights")
-muhat.vals.topzoo.df = as.matrix(muhat.vals.topzoo)
-
-#Monthly ER, SD and Sharpe
-manual_ER_month = t(manual_weights) %*% muhat.vals.topzoo.df
-manual_ER_month_simple = exp(manual_ER_month) - 1
-manual_SD_month = (t(manual_weights) %*% cov.mat.topzoo) %*% manual_weights
-manual_sharpe_month = (manual_ER_month - rf)/manual_SD_month
-
-#Annual ER, SD and Sharpe
-manual_ER_annual = manual_ER_month * 12
-manual_ER_annual_simple = exp(manual_ER_month * 12) - 1
-manual_SD_annual = manual_SD_month * sqrt(12)
-manual_sharpe_annual = (manual_ER_annual - (rf*12))/manual_SD_annual
-
-# Backtesting the portfolio
-ticker_names = annual_weights_df$Ticker
-start_data = c()
-end_data = c()
-
-#Grab the two data points (start, end) for all the tickers in the portfolio
-#CHANGE: the start and end dates below to reflect the parameters that you desire!
-for(ticker in ticker_names){
-  start_with = get.hist.quote(instrument=ticker, start=start.date,
-                              end="2007-01-02", quote="AdjClose",
-                              provider="yahoo", origin="1970-01-01",
-                              compression="m", retclass="zoo")
-  end_with = get.hist.quote(instrument=ticker, start=end.date,
-                            end="2020-01-02", quote="AdjClose",
-                            provider="yahoo", origin="1970-01-01",
-                            compression="m", retclass="zoo")
-  start_data = c(start_data, as.numeric(start_with$Adjusted))
-  end_data = c(end_data, as.numeric(end_with$Adjusted))
-  
-}
-
-#Calculate the overall portfolio % change for the whole period.
-#This is assuming that you bought it on the start date and held it all the way
-#till the end date.
-#This is simple returns, so no need for conversion at the end.
-start_data = as.data.frame(start_data)
-end_data = as.data.frame(end_data)
-
-manual_percent_change_data = ((end_data - start_data)/start_data)
-colnames(manual_percent_change_data) = c("percent_change")
-rownames(manual_percent_change_data) = ticker_names
-
-manual_port_change = manual_percent_change_data * manual_weights
-colnames(manual_port_change) = c("overall_change")
-manual_port_change
-
-manual_port_change_figure = paste((sum(manual_port_change$overall_change) * 100), "%", sep = "")
-manual_port_change_figure
 
 #Some last minute calculations (adjustment to simple returns from CC returns)
 monthly_er_simple = exp(tan.port.ns$er) - 1
@@ -439,19 +387,4 @@ paste("Annual Portfolio Sharpe Ratio:", (annual_er_cc - annual_rf)/annual_sd)
 
 annual_weights_df
 port_change_figure
-#--------------------------------------------------------------------
-#If you decided to manually input portfolio weights
-
-#Monthly Stats
-paste("Monthly Portfolio Expected Returns:", manual_ER_month_simple*100, "%")
-paste("Monthly Portfolio Standard Deviation:", manual_SD_month*100, "%")
-paste("Monthly Portfolio Sharpe Ratio:", manual_sharpe_month)
-
-#Annual Stats
-paste("Annual Portfolio Expected Returns:", manual_ER_annual_simple*100, "%")
-paste("Annual Portfolio Standard Deviation:", manual_SD_annual*100, "%")
-paste("Annual Portfolio Sharpe Ratio:", manual_sharpe_annual)
-
-manual_weights
-manual_port_change_figure
 #--------------------------------------------------------------------
