@@ -304,7 +304,7 @@ progress_count = 0
 for(i in 1:total_iterations){
 random_weights_list = data_frame(rep(1,portfolios_to_generate))
 for(x in 1:length(colnames(top_zoo_df))){
-  g = as.data.frame(runif(portfolios_to_generate, min=0.04, max=0.1))
+  g = as.data.frame(runif(portfolios_to_generate, min=0.1, max=0.13))
   random_weights_list = cbind(random_weights_list,g)
 }
 
@@ -312,16 +312,18 @@ random_weights_list = random_weights_list[,2:ncol(random_weights_list)]
 random_weights_list = t(random_weights_list)
 
 muhat_list = c()
+var_list = c()
 sd_list = c()
 
 #Calculate the expected returns and SDs for each of the hypothetical portfolios
 for(x in 1:ncol(random_weights_list)){
   muhat_temp = t(as.matrix(muhat.vals.topzoo)) %*% as.matrix(random_weights_list[,x])
-  sd_temp = (t(as.matrix(random_weights_list[,x])) %*% cov.mat.topzoo) %*% as.matrix(random_weights_list[,x])
+  var_temp = (t(as.matrix(random_weights_list[,x])) %*% cov.mat.topzoo) %*% as.matrix(random_weights_list[,x])
   muhat_list = c(muhat_list,muhat_temp)
-  sd_list = c(sd_list,sd_temp)
+  var_list = c(var_list,var_temp)
 }
 
+sd_list = sqrt(var_list)
 muhat_list = as.matrix(muhat_list)
 sd_list = as.matrix(sd_list)
 
@@ -347,7 +349,9 @@ sharpe_list = as.matrix(sharpe_list)
 #-----------------------------------------------------------------
 #Repeat the ER (simple, cc), SD and Sharpes again, but this time for annual
 muhat_list_annual = 12 * muhat_list
-sd_list_annual = sqrt(12) * sd_list
+var_list_annual = sqrt(12) * var_list
+sd_list_annual = sqrt(var_list_annual)
+sd_list_annual = as.data.frame(sd_list_annual)
 
 muhat_list_annual_simple = c()
 for(muhat in muhat_list_annual){
@@ -412,14 +416,20 @@ print(paste("Progress So Far:", progress_count, "/", total_iterations))
 portfolio_weight = as.numeric(portfolio_to_consider[ncol(portfolio_to_consider)])
 
 if(portfolio_weight > 1){
+  #If the total asset weight allocation is > 100%, the portfolio gets dumped.
   next
 }else if(ncol(best_so_far) == 0){
+  #If there are no portfolios yet, and the asset weight allocation is <= 100%, then it auto
+  #becomes the best_so_far portfolio.
   best_so_far = portfolio_to_consider
   best_sharpe_to_compare = as.numeric(sorted_weights_list[1,][ncol(sorted_weights_list) - 1])
 }else if (sharpe_to_consider > best_sharpe_to_compare){
+  #If another portfolio comes around with a higher Sharpe ratio and <=100% total asset weight
+  #then it replaces the incumbent portfolio.
   best_so_far = portfolio_to_consider
   best_sharpe_to_compare = as.numeric(portfolio_to_consider[1,][ncol(portfolio_to_consider) - 1])
 }else{
+  #If all else fails, portfolio gets kicked. Next!
   next
 }
 
@@ -428,9 +438,8 @@ if(portfolio_weight > 1){
 #Just a minor cosmetic change
 colnames(best_so_far)[ncol(best_so_far)] = c("Total Asset Weight")
 
-#Transposed so my life is easier later on.
+#Transposed the best_so_far portfolio so my life is easier later on.
 best_so_far = t(best_so_far)
-
 
 #---------------------------------------------------------------------
 
