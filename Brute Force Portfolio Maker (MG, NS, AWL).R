@@ -35,12 +35,14 @@ library("aTSA")
 
 #Import the relevant stock csv file and the noshorts file
 #CHANGE the working directory to your own folder (put portfolio_noshorts.r into that folder!)
+
 #Replace all the \ in the directory with /, or else you will run into an error
 #For example, instead of setwd("\Users\kenfung\Desktop\FreshFinance"), 
 #do setwd("/Users/kenfung/Desktop/FreshFinance") instead
+
 #This is the same for Windows users!
 
-setwd("/Users/kenfung/Desktop/FreshFinance")
+setwd("/Users/kenfung/Desktop/FreshFinance/")
 
 #CHANGE the file name to the index csv file (the file with all the tickers)
 #MAKE SURE that the column name of that csv file is Symbol
@@ -58,10 +60,13 @@ colnames(index) = c("Symbol")
 #Grab the ticker names
 index.names = index$Symbol
 
+#Choose how many stocks you want in the final portfolio
+stocks_in_portfolio = 10
+
 #(CHANGE) set the desired start and end dates
 start.date = "2007-01-01"
-end.date = "2020-01-01"
-#----------------------------------
+end.date = "2020-01-04"
+
 #Just run this code, these will get deleted later on because they might be duplicated
 #For Indonesia, let the default two assets be SMSM and SHIP (because they go before JAN 2007)
 
@@ -214,7 +219,7 @@ projectPrices.new.df = projectPrices.df[c(overall_stocklist_list)]
 #Don't worry about this
 write.csv(projectPrices.new.df, file = "ProjectPrices.csv")
 projectPrices.new.df = read.csv("ProjectPrices.csv")
-projectPrices.new.df = projectPrices.new.df[,2:ncol(projectPrices.df)]
+projectPrices.new.df = projectPrices.new.df[,2:ncol(projectPrices.new.df)]
 
 
 #Convert df to zoo and adjust the date index
@@ -234,7 +239,7 @@ sd.vals = apply(projectReturns.df, 2, sd)
 #and converted to continuously compounded form r = ln(1 + R)
 #Original rate is 7.865%
 #(CHANGE: the adjusted_rate to account for Moody's rating) (original - Moody's modifier)
-adjusted_rate = (0.07865 - 0.0175)
+adjusted_rate = (0.07865 - 0.175)
 rf = log(1 + adjusted_rate)/12
 
 sharpe.vals = (muhat.vals-rf)/sd.vals
@@ -248,10 +253,17 @@ sharpe.vals.df.sorted = sharpe.vals.df %>% arrange(desc(sharpe.vals.df$sharpe.va
 top_zoo = zoo()
 top_names = c()
 nrow(sharpe.vals.df.sorted)
-if(nrow(sharpe.vals.df.sorted) < 45){
+
+#Just to make sure the number of stocks in the portfolio is <= 45 (software limitation)
+#The default fallback is 20 stocks.
+if(stocks_in_portfolio > 45){
+  top_length = 20
+} else {
+  top_length = stocks_in_portfolio
+}
+
+if(top_length > nrow(sharpe.vals.df.sorted)){
   top_length = nrow(sharpe.vals.df.sorted)
-} else{
-  top_length = 45
 }
 for(x in 1:top_length){
   top_zoo = cbind(projectReturns.z[,sharpe.vals.df.sorted[x,1]],top_zoo)
@@ -290,7 +302,7 @@ UniDesStat.df.topzoo = summary(top_zoo_df)
 #This is where the asset weight limiting happens...
 
 #Choose how many different portfolios you want to generate in each instance
-portfolios_to_generate = 1000
+portfolios_to_generate = 200
 
 #Choose how many time you want to generate portfolios
 total_iterations = 1000
@@ -304,7 +316,7 @@ progress_count = 0
 for(i in 1:total_iterations){
 random_weights_list = data_frame(rep(1,portfolios_to_generate))
 for(x in 1:length(colnames(top_zoo_df))){
-  g = as.data.frame(runif(portfolios_to_generate, min=0.1, max=0.13))
+  g = as.data.frame(runif(portfolios_to_generate, min=0.05, max=0.1))
   random_weights_list = cbind(random_weights_list,g)
 }
 
@@ -446,10 +458,14 @@ best_so_far = t(best_so_far)
 #Backtesting the data
 
 #Backtesting the portfolio
+
+#Just initializing some buckets here.
 ticker_names = colnames(top_zoo_df)
 start_data = c()
 end_data = c()
 
+#Sometimes the program gets wonky and allocates a reallllyyy long column name to an asset.
+#Small fix for that here.
 for(n in 1:length(ticker_names)){
   if(colnames(top_zoo_df)[n]>7){
     colnames(top_zoo_df)[n] = substr(colnames(top_zoo_df)[n],1,7)
@@ -466,14 +482,12 @@ for(ticker in ticker_names){
                               end="2007-01-02", quote="AdjClose",
                               provider="yahoo", origin="1970-01-01",
                               compression="m", retclass="zoo")
-  end_with = get.hist.quote(instrument=ticker, start=end.date,
-                            end="2020-01-02", quote="AdjClose",
+  end_with = get.hist.quote(instrument=ticker, start="2019-12-31",
+                            end="2020-01-04", quote="AdjClose",
                             provider="yahoo", origin="1970-01-01",
                             compression="m", retclass="zoo")
   start_data = c(start_data, as.numeric(start_with$Adjusted))
   end_data = c(end_data, as.numeric(end_with$Adjusted))
-  
-  #Sys.sleep(1)
   
 }
 
@@ -515,14 +529,21 @@ port_change_figure
 #At the end, export a csv file of all the results that you got
 
 
-
 #transpose best_so_far, because I need to add the port_change_figure from above
 port_change_figure.df = as.data.frame(port_change_figure)
 best_so_far_tpose = as.data.frame(t(best_so_far))
 best_so_far_tpose = cbind(best_so_far_tpose,port_change_figure.df)
+
 #Transpose back because I like my data.frames vertical
 best_so_far_tpose = t(best_so_far_tpose)
 
-#Export the data
-write.csv(best_so_far_tpose, file = "Best Portfolio So Far (2nd Try seed 1237).csv")
+#--------------------------------------------------------------------
 
+#Export the data
+write.csv(best_so_far_tpose, file = "Best Portfolio So Far (2nd Try seed 1238).csv")
+
+#If the program did not manage to generate a portfolio, display a warning an some advice!
+if(ncol(best_so_far_tpose) == 0){
+  print("If you see this message (in black) and a bunch of errors, the program did not catch anything.")
+  print("Please highlight everything from line 362 onwards and try again!")
+}
