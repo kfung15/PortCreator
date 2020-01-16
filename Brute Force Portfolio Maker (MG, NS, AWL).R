@@ -545,5 +545,5 @@ write.csv(best_so_far_tpose, file = "Best Portfolio So Far (2nd Try seed 1238).c
 #If the program did not manage to generate a portfolio, display a warning an some advice!
 if(ncol(best_so_far_tpose) == 0){
   print("If you see this message (in black) and a bunch of errors, the program did not catch anything.")
-  print("Please highlight everything from line 362 onwards and try again!")
+  print("Please highlight everything from line 301 onwards and try again!")
 }
